@@ -171,12 +171,22 @@
           <div class="card-header border-0 bg-dark">Nueva Tarjeta de Denuncia</div>
           <div class="card-body">
             <form id="formAgregar">
+
+              <!-- Foto -->
+              <div class="mb-3">
+                <label class="form-label text-muted small fw-bold">Foto (Opcional)</label>
+                <input type="file" class="form-control" id="inputFoto" accept="image/*">
+                <div id="fotoPreview" class="mt-2 text-center d-none">
+                  <img id="fotoImg" src="" alt="Vista previa" style="width:100px;height:100px;object-fit:cover;border-radius:50%;border:3px solid #9b1d6a;">
+                </div>
+              </div>
+
               <!-- Nombre -->
               <div class="mb-3">
                 <label class="form-label text-muted small fw-bold">Nombre del agresor *</label>
                 <input type="text" class="form-control border-secondary text-dark" id="inputNombre" required placeholder="Ej: Juan Pérez">
               </div>
-              
+
               <!-- Carpeta -->
               <div class="mb-3">
                 <label class="form-label text-muted small fw-bold">Carpeta de Investigación (Opcional)</label>
@@ -241,6 +251,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 
   <script>
     // ─── INICIALIZAR FIREBASE ──────────────────────────────────────
@@ -253,8 +264,9 @@
       appId: "1:742829676026:web:44c28254c34412a33d8043"
     };
     firebase.initializeApp(firebaseConfig);
-    const auth = firebase.auth();
-    const db   = firebase.firestore();
+    const auth    = firebase.auth();
+    const db      = firebase.firestore();
+    const storage = firebase.storage();
 
     // ─── GOOGLE SIGN-IN ───────────────────────────────────────────
     const googleProvider = new firebase.auth.GoogleAuthProvider();
@@ -402,22 +414,50 @@
       }
     }
 
-    // ─── AGREGAR DENUNCIA (Firestore) ─────────────────────────────
+    // ─── PREVIEW DE FOTO ──────────────────────────────────────────
+    document.getElementById('inputFoto').addEventListener('change', function() {
+      const file = this.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = e => {
+        document.getElementById('fotoImg').src = e.target.result;
+        document.getElementById('fotoPreview').classList.remove('d-none');
+      };
+      reader.readAsDataURL(file);
+    });
+
+    // ─── AGREGAR DENUNCIA (Firestore + Storage) ───────────────────
     document.getElementById('formAgregar').addEventListener('submit', async (e) => {
       e.preventDefault();
       const btn = document.getElementById('btnGuardar');
       btn.disabled = true; btn.textContent = "Publicando...";
 
       try {
+        // 1. Subir foto si existe
+        let fotoURL = null;
+        const archivoFoto = document.getElementById('inputFoto').files[0];
+        if (archivoFoto) {
+          btn.textContent = "Subiendo foto...";
+          const ext = archivoFoto.name.split('.').pop();
+          const ref = storage.ref(`fotos/${Date.now()}.${ext}`);
+          await ref.put(archivoFoto);
+          fotoURL = await ref.getDownloadURL();
+        }
+
+        // 2. Guardar en Firestore
+        btn.textContent = "Guardando...";
         await db.collection('denuncias').add({
           nombre:      document.getElementById('inputNombre').value,
           carpeta:     document.getElementById('inputCarpeta').value,
           tipo:        document.getElementById('inputTipo').value,
           desc:        document.getElementById('inputDesc').value,
+          fotoURL,
           autor_email: auth.currentUser ? auth.currentUser.email : 'anonimo',
           fecha:       firebase.firestore.FieldValue.serverTimestamp()
         });
+
         document.getElementById('formAgregar').reset();
+        document.getElementById('fotoPreview').classList.add('d-none');
         cargarDenuncias();
       } catch (err) {
         alert("Error al publicar: " + err.message);

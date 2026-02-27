@@ -12,6 +12,10 @@
     rel="stylesheet" />
 
   <link rel="stylesheet" href="style.css" />
+
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 </head>
 
 <body>
@@ -39,80 +43,7 @@
 
       <div class="carousel-track-container" aria-live="polite">
         <div class="carousel-track" id="carouselTrack">
-
-          <!-- ── TARJETA 1 (Ejemplo – reemplazar con datos reales) ── -->
-          <div class="card" role="group" aria-label="Persona 1 de 3">
-            <div class="card-inner">
-              <div class="card-photo-wrap">
-                <!-- Sustituir src con la ruta real de la imagen -->
-                <!-- <img src="fotos/nombre1.jpg" alt="Foto de la persona" /> -->
-                <div class="card-photo-placeholder">👤</div>
-              </div>
-              <p class="card-name">Nombre Apellido</p>
-              <p class="card-carpeta">
-                Carpeta de investigación: <span>VER/XXX/2025</span>
-              </p>
-              <span class="card-tipo">Acoso sexual laboral</span>
-              <p class="card-description">
-                Breve descripción de los hechos o contexto donde se cometió la violencia.
-                Puedes incluir institución, cargo, fecha aproximada.
-              </p>
-              <div class="card-btn-agresor">
-                ⚠ Identificado como agresor sexual
-              </div>
-              <button class="btn-victima" onclick="incrementarVictima(this)">También soy su víctima</button>
-              <div class="victima-contador">0 han dicho esto</div>
-            </div>
-          </div>
-
-          <!-- ── TARJETA 2 ── -->
-          <div class="card" role="group" aria-label="Persona 2 de 3">
-            <div class="card-inner">
-              <div class="card-photo-wrap">
-                <div class="card-photo-placeholder">👤</div>
-              </div>
-              <p class="card-name">Nombre Apellido</p>
-              <p class="card-carpeta">
-                Carpeta de investigación: <span>VER/XXX/2025</span>
-              </p>
-              <span class="card-tipo">Violencia doméstica · Feminicidio tentado</span>
-              <p class="card-description">
-                Breve descripción de los hechos o contexto donde se cometió la violencia.
-                Puedes incluir institución, cargo, fecha aproximada.
-              </p>
-              <div class="card-btn-agresor">
-                ⚠ Identificado como agresor y feminicida
-              </div>
-              <button class="btn-victima" onclick="incrementarVictima(this)">También soy su víctima</button>
-              <div class="victima-contador">0 han dicho esto</div>
-            </div>
-          </div>
-
-          <!-- ── TARJETA 3 ── -->
-          <div class="card" role="group" aria-label="Persona 3 de 3">
-            <div class="card-inner">
-              <div class="card-photo-wrap">
-                <div class="card-photo-placeholder">👤</div>
-              </div>
-              <p class="card-name">Nombre Apellido</p>
-              <p class="card-carpeta">
-                Carpeta de investigación: <span>VER/XXX/2024</span>
-              </p>
-              <span class="card-tipo">Acoso y hostigamiento escolar</span>
-              <p class="card-description">
-                Breve descripción de los hechos o contexto donde se cometió la violencia.
-                Puedes incluir institución, cargo, fecha aproximada.
-              </p>
-              <div class="card-btn-agresor">
-                ⚠ Identificado como acosador y hostigador
-              </div>
-              <button class="btn-victima" onclick="incrementarVictima(this)">También soy su víctima</button>
-              <div class="victima-contador">0 han dicho esto</div>
-            </div>
-          </div>
-
-          <!-- Agrega más tarjetas aquí siguiendo la misma estructura -->
-
+          <!-- Las tarjetas se cargan dinámicamente desde Firestore -->
         </div><!-- /carousel-track -->
       </div><!-- /carousel-track-container -->
 
