@@ -251,7 +251,6 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 
   <script>
     // ─── INICIALIZAR FIREBASE ──────────────────────────────────────
@@ -264,9 +263,9 @@
       appId: "1:742829676026:web:44c28254c34412a33d8043"
     };
     firebase.initializeApp(firebaseConfig);
-    const auth    = firebase.auth();
-    const db      = firebase.firestore();
-    const storage = firebase.storage();
+    const auth = firebase.auth();
+    const db   = firebase.firestore();
+    const IMGBB_KEY = 'c157d25d6e5a44d8316755fd4a90398d';
 
     // ─── GOOGLE SIGN-IN ───────────────────────────────────────────
     const googleProvider = new firebase.auth.GoogleAuthProvider();
@@ -433,15 +432,24 @@
       btn.disabled = true; btn.textContent = "Publicando...";
 
       try {
-        // 1. Subir foto si existe
+        // 1. Subir foto a ImgBB si existe
         let fotoURL = null;
         const archivoFoto = document.getElementById('inputFoto').files[0];
         if (archivoFoto) {
           btn.textContent = "Subiendo foto...";
-          const ext = archivoFoto.name.split('.').pop();
-          const ref = storage.ref(`fotos/${Date.now()}.${ext}`);
-          await ref.put(archivoFoto);
-          fotoURL = await ref.getDownloadURL();
+          const base64 = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result.split(',')[1]);
+            reader.onerror = reject;
+            reader.readAsDataURL(archivoFoto);
+          });
+          const form = new FormData();
+          form.append('key', IMGBB_KEY);
+          form.append('image', base64);
+          const res = await fetch('https://api.imgbb.com/1/upload', { method: 'POST', body: form });
+          const json = await res.json();
+          if (!json.success) throw new Error('Error subiendo la foto a ImgBB');
+          fotoURL = json.data.url;
         }
 
         // 2. Guardar en Firestore
