@@ -221,13 +221,26 @@
     </div>
   </div>
 
-  <!-- Script Principal App Script -->
-  <script>
-    // ─── URL DEL APLICATIVO DE GOOGLE ─────────────────────────────
-    // ADVERTENCIA: Aquí pegaremos el enlace que Google Sheets nos dé
-    const SCRIPT_URL = "URL_DE_TU_GOOGLE_SCRIPT";
+  <!-- Firebase SDKs (compat) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 
-    // ─── NAVEGACIÓN ENTRE LOGIN Y REGISTRO ───
+  <script>
+    // ─── INICIALIZAR FIREBASE ──────────────────────────────────────
+    const firebaseConfig = {
+      apiKey: "AIzaSyAtYkE1IKJA2JLsMtVcGDYo7sfprLn5cTA",
+      authDomain: "tendedero-cach.firebaseapp.com",
+      projectId: "tendedero-cach",
+      storageBucket: "tendedero-cach.firebasestorage.app",
+      messagingSenderId: "742829676026",
+      appId: "1:742829676026:web:44c28254c34412a33d8043"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db   = firebase.firestore();
+
+    // ─── NAVEGACIÓN ENTRE LOGIN Y REGISTRO ────────────────────────
     const loginSection    = document.getElementById('loginSection');
     const registerSection = document.getElementById('registerSection');
     const adminPanel      = document.getElementById('adminPanel');
@@ -236,188 +249,155 @@
     window.mostrarRegistro = () => { loginSection.style.display = 'none'; registerSection.style.display = 'block'; }
     window.mostrarLogin    = () => { registerSection.style.display = 'none'; loginSection.style.display = 'block'; }
 
-    // Función auxiliar para enviar datos al servidor de Google
-    async function fetchGoogle(action, data) {
-      data.action = action; // Le decimos al script qué hacer
-      
-      const formData = new URLSearchParams();
-      for (const [key, value] of Object.entries(data)) {
-        formData.append(key, value);
-      }
-
-      try {
-        const response = await fetch(SCRIPT_URL, {
-          method: 'POST',
-          body: formData
-        });
-        return await response.json();
-      } catch (e) {
-        console.error("Error conectando con Google:", e);
-        return { success: false, message: "Error de conexión" };
-      }
-    }
-
-    // ─── ESTADO GLOBAL DEL USUARIO (Local Storage temporal) ───
-    function verificarSesion() {
-      const uLogueado = localStorage.getItem('cach_user');
-      if (uLogueado) {
-        const user = JSON.parse(uLogueado);
+    // ─── ESTADO DE SESIÓN (Firebase Auth) ─────────────────────────
+    auth.onAuthStateChanged(user => {
+      if (user) {
         loginSection.style.display = 'none';
         registerSection.style.display = 'none';
         adminPanel.style.display = 'flex';
         btnSalir.classList.remove('d-none');
-        document.getElementById('userNombrePanel').textContent = user.nombre;
+        document.getElementById('userNombrePanel').textContent = user.displayName || user.email;
         cargarDenuncias();
       } else {
         loginSection.style.display = 'block';
         adminPanel.style.display = 'none';
         btnSalir.classList.add('d-none');
       }
-    }
-    verificarSesion(); // Ejecutar al inicio
+    });
 
-    // ─── LOGIN ───
-    const formLogin = document.getElementById('formLogin');
-    if(formLogin) {
-      formLogin.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const email = document.getElementById('logEmail').value;
-        const pass = document.getElementById('logPass').value;
-        const btn = document.getElementById('btnAcceder');
-        
-        btn.disabled = true; btn.textContent = "Verificando...";
-        
-        if (SCRIPT_URL === "URL_DE_TU_GOOGLE_SCRIPT") {
-          alert("Falta configurar la URL del Google Script");
-          btn.disabled = false; btn.textContent = "Acceder";
-          return;
-        }
-
-        const rs = await fetchGoogle('login', { email, pass });
-        
-        if(rs.success) {
-          localStorage.setItem('cach_user', JSON.stringify({ email: rs.email, nombre: rs.nombre }));
-          document.getElementById('loginError').classList.add('d-none');
-          verificarSesion();
-          formLogin.reset();
-        } else {
-          document.getElementById('loginError').textContent = rs.message;
-          document.getElementById('loginError').classList.remove('d-none');
-        }
-        btn.disabled = false; btn.textContent = "Acceder";
-      });
+    // ─── TRADUCIR ERRORES DE FIREBASE ─────────────────────────────
+    function traducirError(code) {
+      const errores = {
+        'auth/user-not-found':       'No existe una cuenta con ese correo.',
+        'auth/wrong-password':       'Contraseña incorrecta.',
+        'auth/invalid-credential':   'Correo o contraseña incorrectos.',
+        'auth/email-already-in-use': 'Este correo ya tiene una cuenta.',
+        'auth/weak-password':        'La contraseña debe tener al menos 6 caracteres.',
+        'auth/invalid-email':        'Correo electrónico no válido.',
+        'auth/too-many-requests':    'Demasiados intentos. Espera un momento.',
+      };
+      return errores[code] || 'Ocurrió un error. Intenta de nuevo.';
     }
 
-    // ─── REGISTRO ───
-    const formRegistro = document.getElementById('formRegistro');
-    if(formRegistro) {
-      formRegistro.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const email = document.getElementById('regEmail').value;
-        const pass = document.getElementById('regPass').value;
-        const name = document.getElementById('regName').value;
-        const news = document.getElementById('regNews').checked ? "Si" : "No";
-        const btn = document.getElementById('btnCrearCuenta');
-        const errDiv = document.getElementById('regError');
-        
-        btn.disabled = true; btn.textContent = "Creando espacio seguro...";
-        errDiv.classList.add('d-none');
+    // ─── LOGIN ────────────────────────────────────────────────────
+    document.getElementById('formLogin').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email  = document.getElementById('logEmail').value;
+      const pass   = document.getElementById('logPass').value;
+      const btn    = document.getElementById('btnAcceder');
+      const errDiv = document.getElementById('loginError');
 
-        if (SCRIPT_URL === "URL_DE_TU_GOOGLE_SCRIPT") {
-          alert("Falta configurar la URL del Google Script");
-          btn.disabled = false; btn.textContent = "Crear mi cuenta";
-          return;
-        }
+      btn.disabled = true; btn.textContent = "Verificando...";
+      errDiv.classList.add('d-none');
 
-        const rs = await fetchGoogle('registro', { email, pass, name, news });
-        
-        if (rs.success) {
-          // Si es éxito, loguear automáticamente
-          localStorage.setItem('cach_user', JSON.stringify({ email, nombre: name }));
-          verificarSesion();
-          formRegistro.reset();
-        } else {
-          errDiv.textContent = rs.message;
-          errDiv.classList.remove('d-none');
-        }
+      try {
+        await auth.signInWithEmailAndPassword(email, pass);
+        document.getElementById('formLogin').reset();
+      } catch (error) {
+        errDiv.textContent = traducirError(error.code);
+        errDiv.classList.remove('d-none');
+      }
+      btn.disabled = false; btn.textContent = "Acceder";
+    });
+
+    // ─── REGISTRO ─────────────────────────────────────────────────
+    document.getElementById('formRegistro').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email  = document.getElementById('regEmail').value;
+      const pass   = document.getElementById('regPass').value;
+      const name   = document.getElementById('regName').value;
+      const btn    = document.getElementById('btnCrearCuenta');
+      const errDiv = document.getElementById('regError');
+
+      btn.disabled = true; btn.textContent = "Creando espacio seguro...";
+      errDiv.classList.add('d-none');
+
+      try {
+        const cred = await auth.createUserWithEmailAndPassword(email, pass);
+        await cred.user.updateProfile({ displayName: name });
+        document.getElementById('formRegistro').reset();
+      } catch (error) {
+        errDiv.textContent = traducirError(error.code);
+        errDiv.classList.remove('d-none');
         btn.disabled = false; btn.textContent = "Crear mi cuenta";
-      });
-    }
+      }
+    });
 
-    // Logout
-    if(btnSalir) {
-      btnSalir.addEventListener('click', () => {
-        localStorage.removeItem('cach_user');
-        verificarSesion();
-      });
-    }
+    // ─── LOGOUT ───────────────────────────────────────────────────
+    btnSalir.addEventListener('click', () => auth.signOut());
 
 
-    // ─── CARGAR & GUARDAR DENUNCIAS ───
-    const tBody = document.getElementById('tablaDenuncias');
+    // ─── CARGAR DENUNCIAS (Firestore) ─────────────────────────────
+    const tBody    = document.getElementById('tablaDenuncias');
     const tLoading = document.getElementById('tablaLoading');
-    const conteo = document.getElementById('conteoTarjetas');
+    const conteo   = document.getElementById('conteoTarjetas');
 
     async function cargarDenuncias() {
-      if (SCRIPT_URL === "URL_DE_TU_GOOGLE_SCRIPT") return;
-      tBody.innerHTML = ''; tLoading.style.display = 'block';
-      conteo.textContent = "...";
+      tBody.innerHTML = '';
+      tLoading.style.display = 'block';
+      conteo.textContent = '...';
 
-      const rs = await fetchGoogle('obtener_denuncias', {});
-      
-      tLoading.style.display = 'none';
-      if(rs.success && rs.data.length > 0) {
-        conteo.textContent = rs.data.length;
-        rs.data.forEach((d, index) => {
+      try {
+        const snap = await db.collection('denuncias').orderBy('fecha', 'desc').get();
+        tLoading.style.display = 'none';
+
+        if (snap.empty) {
+          conteo.textContent = 0;
+          tBody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-4">Aún no hay visualizaciones.</td></tr>';
+          return;
+        }
+
+        conteo.textContent = snap.size;
+        snap.forEach(doc => {
+          const d = doc.data();
           tBody.innerHTML += `
             <tr>
-              <td class="align-middle fw-bold ps-4 text-purple-deep">${d.nombre}</td>
+              <td class="align-middle fw-bold ps-4">${d.nombre}</td>
               <td class="align-middle small text-muted">${d.tipo}</td>
               <td class="align-middle text-center pe-4">
-                <button class="btn btn-sm btn-outline-danger fw-bold shadow-sm" onclick="eliminarDenuncia('${d.id || index + 2}')">Quitar</button>
+                <button class="btn btn-sm btn-outline-danger fw-bold shadow-sm" onclick="eliminarDenuncia('${doc.id}')">Quitar</button>
               </td>
             </tr>`;
         });
-      } else {
-        conteo.textContent = 0;
-        tBody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-4">Aún no hay visualizaciones.</td></tr>';
+      } catch (err) {
+        tLoading.style.display = 'none';
+        tBody.innerHTML = '<tr><td colspan="3" class="text-center text-danger py-4">Error al cargar. Revisa las reglas de Firestore.</td></tr>';
+        console.error(err);
       }
     }
 
-    const formAgregar = document.getElementById('formAgregar');
-    const btnGuardar  = document.getElementById('btnGuardar');
-    if(formAgregar) {
-      formAgregar.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        btnGuardar.disabled = true; btnGuardar.textContent = "Publicando...";
+    // ─── AGREGAR DENUNCIA (Firestore) ─────────────────────────────
+    document.getElementById('formAgregar').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('btnGuardar');
+      btn.disabled = true; btn.textContent = "Publicando...";
 
-        const autor = JSON.parse(localStorage.getItem('cach_user')) || {email:"anonimo@cach"};
-        
-        const data = {
-          nombre: document.getElementById('inputNombre').value,
-          carpeta: document.getElementById('inputCarpeta').value,
-          tipo: document.getElementById('inputTipo').value,
-          desc: document.getElementById('inputDesc').value,
-          autor_email: autor.email
-        };
+      try {
+        await db.collection('denuncias').add({
+          nombre:      document.getElementById('inputNombre').value,
+          carpeta:     document.getElementById('inputCarpeta').value,
+          tipo:        document.getElementById('inputTipo').value,
+          desc:        document.getElementById('inputDesc').value,
+          autor_email: auth.currentUser ? auth.currentUser.email : 'anonimo',
+          fecha:       firebase.firestore.FieldValue.serverTimestamp()
+        });
+        document.getElementById('formAgregar').reset();
+        cargarDenuncias();
+      } catch (err) {
+        alert("Error al publicar: " + err.message);
+      }
+      btn.disabled = false; btn.textContent = "Publicar en Tendedero";
+    });
 
-        const rs = await fetchGoogle('agregar_denuncia', data);
-        if(rs.success) {
-          formAgregar.reset();
+    // ─── ELIMINAR DENUNCIA (Firestore) ────────────────────────────
+    window.eliminarDenuncia = async function(id) {
+      if (confirm('¿Estás segura de eliminar esta tarjeta permanentemente?')) {
+        try {
+          await db.collection('denuncias').doc(id).delete();
           cargarDenuncias();
-        } else {
-          alert("Error: " + rs.message);
+        } catch (err) {
+          alert("Error al eliminar: " + err.message);
         }
-        
-        btnGuardar.disabled = false; btnGuardar.textContent = "Publicar en Tendedero";
-      });
-    }
-
-    window.eliminarDenuncia = async function(filaIndex) {
-      if(confirm('¿Estás segura de eliminar esta tarjeta permanentemente?')) {
-        const rs = await fetchGoogle('eliminar_denuncia', { fila: filaIndex });
-        if(rs.success) cargarDenuncias();
-        else alert("Error al eliminar: " + rs.message);
       }
     }
   </script>
